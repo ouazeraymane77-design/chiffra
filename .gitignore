@@ -1,0 +1,10 @@
+.env
+*.env
+!.env.example
+__pycache__/
+*.pyc
+.venv/
+venv/
+chiffra.db
+data/cache/
+.DS_Store
