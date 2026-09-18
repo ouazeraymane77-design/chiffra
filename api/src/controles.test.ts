@@ -157,3 +157,59 @@ describe("chiffrage et apprentissage", () => {
     assert.ok(revu.confiance < cible.confiance);
   });
 });
+
+describe("garde-fous de lecture", () => {
+  test("un triplet aux signes incoherents est refuse", async () => {
+    const { ingerer } = await import("./ingest.js");
+    const { q } = await import("./money.js");
+    const piece = await ingerer(
+      `${process.env.DATA_DIR ?? "/srv/data"}/factures/DOC-073.pdf`,
+      async () => ({
+        numero: "FA-2026-0005",
+        date: "2026-05-02",
+        tauxTva: 14,
+        ht: q("-827861.08"),
+        tva: q("835773.82"),
+        ttc: q("7912.74"),
+      })
+    );
+    assert.equal(piece.statut, "non_traite");
+    assert.equal(piece.ttc, null);
+  });
+
+  test("un TTC hors de l'historique du tiers est refuse", async () => {
+    const { ingerer } = await import("./ingest.js");
+    const { q } = await import("./money.js");
+    const piece = await ingerer(
+      `${process.env.DATA_DIR ?? "/srv/data"}/factures/DOC-073.pdf`,
+      async () => ({
+        numero: "FA-2026-0005",
+        date: "2026-05-02",
+        tauxTva: 14,
+        ht: q("5964957.29"),
+        tva: q("835094.02"),
+        ttc: q("6800051.31"),
+      })
+    );
+    assert.equal(piece.statut, "non_traite");
+    assert.match(piece.motif!, /invraisemblable/);
+  });
+
+  test("une lecture correcte par le modele est acceptee", async () => {
+    const { ingerer } = await import("./ingest.js");
+    const { q } = await import("./money.js");
+    const piece = await ingerer(
+      `${process.env.DATA_DIR ?? "/srv/data"}/factures/DOC-073.pdf`,
+      async () => ({
+        numero: "FA-2026-0005",
+        date: "2026-05-02",
+        tauxTva: 14,
+        ht: q("6940.12"),
+        tva: q("971.62"),
+        ttc: q("7911.74"),
+      })
+    );
+    assert.equal(piece.statut, "traite");
+    assert.equal(piece.sourceExtraction, "lecture_modele");
+  });
+});

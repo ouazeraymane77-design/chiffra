@@ -324,8 +324,28 @@ export function reparer(champs: Champs): Champs {
   return champs;
 }
 
+/**
+ * Coherence de signe et d'ordre de grandeur interne au triplet.
+ *
+ * Une facture porte trois montants de meme signe, et sa TVA ne peut pas
+ * depasser son TTC. Sans ce controle, un HT negatif et une TVA enorme dont la
+ * somme retombe sur un TTC plausible passeraient : le TTC serait credible, la
+ * TVA absurde, et c'est la TVA qui porte l'exposition.
+ */
+export function signesCoherents(champs: Champs): boolean {
+  const { ht, tva, ttc } = champs;
+  if (!ht || !tva || !ttc) return true;
+  const attendus = champs.typePiece === "avoir" ? [-1, 0] : [0, 1];
+  for (const montant of [ht, tva, ttc]) {
+    const signe = montant.isZero() ? 0 : montant.isNegative() ? -1 : 1;
+    if (!attendus.includes(signe)) return false;
+  }
+  return tva.abs().lessThanOrEqualTo(ttc.abs());
+}
+
 /** Un montant lu sur une image est confronte a l'historique du tiers. */
 export function vraisemblable(champs: Champs): boolean {
+  if (!signesCoherents(champs)) return false;
   if (!champs.fiche || !champs.ttc) return true;
   const plafond = champs.fiche.montantMoyenTtc.times(FACTEUR_INVRAISEMBLABLE);
   return champs.ttc.abs().lessThanOrEqualTo(plafond);
@@ -335,6 +355,7 @@ export function complet(champs: Champs | null): boolean {
   if (!champs) return false;
   if (champs.reconstructionNonVerifiee) return false;
   if (!champs.numero || !champs.date || !champs.ttc) return false;
+  if (!signesCoherents(champs)) return false;
   return coherent(champs.ht, champs.tva, champs.ttc);
 }
 
@@ -425,6 +446,7 @@ export async function ingerer(
 
   let partiel: Champs | null = null;
   let invraisemblable: Champs | null = null;
+  let signesFaux: Champs | null = null;
 
   for (const [source, texte] of tentatives) {
     const champs = reparer(champsDepuisTexte(texte));
@@ -434,6 +456,7 @@ export async function ingerer(
       }
       invraisemblable = champs;
     }
+    if (!signesCoherents(champs)) signesFaux ??= champs;
     piece.texteBrut = texte;
     partiel ??= champs;
   }
@@ -445,6 +468,7 @@ export async function ingerer(
     const lu = await lecteurModele(chemin, piece.texteBrut);
     if (lu) {
       const champs = reparer({ ...(partiel as Champs), ...lu });
+      if (!signesCoherents(champs)) signesFaux = champs;
       if (complet(champs)) {
         if (vraisemblable(champs)) return appliquer(piece, champs, "lecture_modele");
         invraisemblable = champs;
@@ -478,6 +502,20 @@ export async function ingerer(
     })) {
       if (valeur) piece.lecturePartielle[cle] = valeur.toFixed(2);
     }
+  }
+
+  if (signesFaux) {
+    piece.tiersLibelle = signesFaux.tiersLibelle;
+    piece.fiche = signesFaux.fiche;
+    piece.lecturePartielle = {
+      ht_lu: signesFaux.ht?.toFixed(2) ?? "",
+      tva_lue: signesFaux.tva?.toFixed(2) ?? "",
+      ttc_lu: signesFaux.ttc?.toFixed(2) ?? "",
+    };
+    piece.motif =
+      "montants incoherents entre eux : les trois valeurs lues n'ont pas le " +
+      "meme signe, ou la TVA depasse le TTC";
+    return piece;
   }
 
   const manquants = (["numero", "date", "ttc"] as const).filter(

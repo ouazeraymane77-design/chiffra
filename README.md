@@ -35,9 +35,15 @@ Le modèle intervient à trois endroits, et à trois endroits seulement :
 | `explain.synthetiser` | gpt-5.5 | Une note de cinq lignes sur le dossier. Seul appel au modèle de raisonnement. |
 
 Tout ce que le modèle produit est ensuite revérifié par le code. Une pièce lue
-par le modèle n'est acceptée que si trois conditions tiennent : `HT + TVA = TTC`,
-la TVA correspond au taux porté sur le document, et le TTC reste dans l'ordre de
-grandeur historique du fournisseur. Ce troisième contrôle n'est pas théorique :
+sur une image n'est acceptée que si quatre conditions tiennent : `HT + TVA = TTC`,
+les trois montants ont le même signe et la TVA ne dépasse pas le TTC, la TVA
+correspond au taux porté sur le document, et le TTC reste dans l'ordre de
+grandeur historique du fournisseur.
+
+Le contrôle de signe n'est pas théorique non plus : sur ce corpus, le modèle a
+rendu un HT négatif et une TVA de 835 773 MAD dont la somme retombait sur un TTC
+parfaitement plausible. Le TTC passait le premier filtre, mais c'est la TVA qui
+porte l'exposition. La pièce part désormais en file humaine. Ce troisième contrôle n'est pas théorique :
 sur le corpus, un scan dégradé d'ENERGIE PLUS a été lu à 457 000 MAD alors que
 ce fournisseur facture 8 238 MAD en moyenne. Le code l'a refusé et l'a renvoyé
 en file humaine, avec le motif affiché. Le contrôle s'applique à toute lecture
