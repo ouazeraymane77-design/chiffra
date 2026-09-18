@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # etat persistant : base SQLite et cache des appels au modele
+      - chiffra-etat:/srv/etat
+
+volumes:
+  chiffra-etat:
