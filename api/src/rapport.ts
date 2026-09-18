@@ -29,6 +29,17 @@ export interface AnomaliePubliee {
   apprentissage?: string;
 }
 
+/** L'interface attend des noms en minuscules souligne, comme le reste de
+ *  l'API : la conversion se fait ici, une seule fois. */
+export interface ResiduelPublie {
+  ligne_id: string;
+  date: string;
+  libelle: string;
+  debit: string;
+  residuel: string;
+  pieces_affectees: string[];
+}
+
 export interface Rapport {
   execution_id: number;
   genere_le: string;
@@ -44,7 +55,7 @@ export interface Rapport {
   exposition_totale_mad: string;
   anomalies: AnomaliePubliee[];
   non_traitees: { doc_id: string; fichier: string; motif: string | null; tiers: string | null }[];
-  residuels_bancaires: Rapprochement["residuelsAArbitrer"];
+  residuels_bancaires: ResiduelPublie[];
   journal: EtapeJournal[];
   synthese: string | null;
 }
@@ -106,7 +117,14 @@ export function construireRapport(
         motif: p.motif,
         tiers: p.tiersLibelle,
       })),
-    residuels_bancaires: rappro?.residuelsAArbitrer ?? [],
+    residuels_bancaires: (rappro?.residuelsAArbitrer ?? []).map((l) => ({
+      ligne_id: l.ligneId,
+      date: l.date,
+      libelle: l.libelle,
+      debit: l.debit,
+      residuel: l.residuel,
+      pieces_affectees: l.piecesAffectees,
+    })),
     journal: etat.journal,
     synthese: etat.synthese,
   };

@@ -105,7 +105,7 @@ export default function App() {
               Chaque identifiant ouvre la pièce d'origine. Un rejet abaisse la
               confiance des cas identiques chez le même tiers.
             </p>
-            <Anomalies anomalies={etat.rapport.anomalies} pointee={pointee} />
+            <Anomalies anomalies={etat.rapport.anomalies ?? []} pointee={pointee} />
           </section>
 
           <section>
@@ -114,7 +114,7 @@ export default function App() {
               Lecture impossible ou montant invraisemblable : aucune valeur n'a
               été retenue, aucun montant n'a été inventé.
             </p>
-            <NonTraitees pieces={etat.rapport.non_traitees} />
+            <NonTraitees pieces={etat.rapport.non_traitees ?? []} />
           </section>
 
           <section>
@@ -124,7 +124,7 @@ export default function App() {
               d'office : {etat.rapport.lignes_ignorees_regle_12} lignes, jamais
               comptées comme anomalies.
             </p>
-            <Residuels lignes={etat.rapport.residuels_bancaires} />
+            <Residuels lignes={etat.rapport.residuels_bancaires ?? []} />
           </section>
 
           <section>
@@ -133,7 +133,7 @@ export default function App() {
               Les étapes du graphe et leur état, tels qu'ils sont enregistrés en
               base à chaque passage.
             </p>
-            <Journal etapes={etat.rapport.journal} />
+            <Journal etapes={etat.rapport.journal ?? []} />
           </section>
         </>
       )}

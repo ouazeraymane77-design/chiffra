@@ -82,7 +82,7 @@ export function Anomalies({ anomalies, pointee }: Props) {
             <div className="chiffre">
               <b>{mad(a.exposition_mad)}</b>
               <span>dirhams</span>
-              <span>confiance {a.confiance.toFixed(2)}</span>
+              <span>confiance {(a.confiance ?? 0).toFixed(2)}</span>
             </div>
 
             <div className="arbitrage">

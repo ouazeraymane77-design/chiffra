@@ -53,7 +53,7 @@ export function Residuels({ lignes }: { lignes: ResiduelBancaire[] }) {
             <td className="nombre">{mad(l.debit)}</td>
             <td className="nombre">{mad(l.residuel)}</td>
             <td>
-              {l.pieces_affectees.length
+              {l.pieces_affectees?.length
                 ? l.pieces_affectees.join(", ")
                 : "aucune"}
             </td>
@@ -67,9 +67,9 @@ export function Residuels({ lignes }: { lignes: ResiduelBancaire[] }) {
 export function Journal({ etapes }: { etapes: EtapeJournal[] }) {
   return (
     <details>
-      <summary>Ouvrir le déroulé, {etapes.length} étapes</summary>
+      <summary>Ouvrir le déroulé, {(etapes ?? []).length} étapes</summary>
       <pre>
-        {etapes
+        {(etapes ?? [])
           .map((e) => `${e.etape}\n  ${JSON.stringify(e.etat)}`)
           .join("\n\n")}
       </pre>

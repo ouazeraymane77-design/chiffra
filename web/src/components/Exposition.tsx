@@ -35,8 +35,8 @@ function parts(anomalies: Anomalie[]): Part[] {
 
 export function Exposition({ rapport, surSegment }: Props) {
   const total = Number(rapport.exposition_totale_mad);
-  const segments = parts(rapport.anomalies);
-  const chiffrees = rapport.anomalies.filter(
+  const segments = parts(rapport.anomalies ?? []);
+  const chiffrees = (rapport.anomalies ?? []).filter(
     (a) => Number(a.exposition_mad) > 0
   ).length;
 
