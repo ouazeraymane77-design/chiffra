@@ -1,4 +1,4 @@
-"""Agent Ingestor — normalise n'importe quelle entree en piece structuree.
+﻿"""Agent Ingestor â€” normalise n'importe quelle entree en piece structuree.
 
 Escalade explicite, du moins cher au plus cher. Chaque niveau qui echoue passe
 la main au suivant ; si tous echouent le document sort en 'non_traite' avec un
@@ -26,11 +26,11 @@ FACTURES = DATA / "factures"
 # l'OCR confond les chiffres et les lettres dans le numero de piece
 # ("FA-2026-0C 06") : on capture large, puis on normalise.
 RE_NUMERO = re.compile(
-    r"\b(FACTURE|AVOIR|FACTUR[E3]|AV0IR)\s*N?[°o0]?\s*:?\s*"
-    r"([A-Z]{2}\s?[-—]\s?[\dOoIlSB]{4}\s?[-—]\s?[\dOoIlSB\s]{3,6})", re.I)
+    r"\b(FACTURE|AVOIR|FACTUR[E3]|AV0IR)\s*N?[Â°o0]?\s*:?\s*"
+    r"([A-Z]{2}\s?[-â€”]\s?[\dOoIlSB]{4}\s?[-â€”]\s?[\dOoIlSB\s]{3,6})", re.I)
 
 TRANSPOSITION_OCR = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1",
-                                   "C": "0", "S": "5", "B": "8", "—": "-"})
+                                   "C": "0", "S": "5", "B": "8", "â€”": "-"})
 
 
 def normaliser_numero(brut: str) -> str:
@@ -49,7 +49,7 @@ RE_TAUX = re.compile(r"TVA\s*:?\s*(\d{1,2})\s*%")
 MONTANT = r"(-?\s?\d[\d\s.,]*)"
 RE_HT = re.compile(r"\w{0,2}TAL\s*H\.?T\.?\s*:?\s*" + MONTANT, re.I)
 RE_TVA = re.compile(r"TVA\s*\d{1,2}\s*%\s*:?\s*" + MONTANT)
-RE_TTC = re.compile(r"(?:Net\s*[àa]\s*payer\s*T\.?T\.?C|\w{0,2}TAL\s*T\.?T\.?C\.?)\s*:?\s*" + MONTANT, re.I)
+RE_TTC = re.compile(r"(?:Net\s*[Ã a]\s*payer\s*T\.?T\.?C|\w{0,2}TAL\s*T\.?T\.?C\.?)\s*:?\s*" + MONTANT, re.I)
 
 
 # ---------------------------------------------------------------- extraction
@@ -254,12 +254,15 @@ CHAMPS_MINIMUM = ("numero", "date", "ttc")
 FACTEUR_INVRAISEMBLABLE = d("10")
 
 
+SOURCES_SURES = ("couche_texte_pdf", "export_excel_cabinet")
+
+
 def vraisemblable(champs: dict) -> bool:
     """Un montant lu par le modele est confronte a l'historique du tiers.
 
     Le modele lit une image degradee : il peut decaler une virgule ou coller
     deux nombres. Une piece a dix fois la moyenne du fournisseur n'est pas
-    retenue comme lue — elle part en file humaine plutot que de fausser
+    retenue comme lue â€” elle part en file humaine plutot que de fausser
     l'exposition totale.
     """
     fiche, ttc = champs.get("fiche_fournisseur"), champs.get("ttc")
@@ -296,8 +299,12 @@ def ingerer(chemin: Path, lecteur_modele=None) -> dict:
     for source, texte in tentatives:
         champs = reparer(champs_depuis_texte(texte))
         if complet(champs):
-            piece.update(champs, statut="traite", source_extraction=source, texte_brut=texte)
-            return piece
+            if source in SOURCES_SURES or vraisemblable(champs):
+                piece.update(champs, statut="traite", source_extraction=source,
+                             texte_brut=texte)
+                return piece
+            piece["_invraisemblable"] = (champs.get("ttc"),
+                                         champs.get("fiche_fournisseur"))
         piece["texte_brut"] = texte
         piece.setdefault("_partiel", champs)
 
@@ -323,6 +330,16 @@ def ingerer(chemin: Path, lecteur_modele=None) -> dict:
                 return piece
 
     partiel = piece.pop("_partiel", {}) or {}
+    invraisemblable = piece.pop("_invraisemblable", None)
+    if invraisemblable:
+        ttc_lu, fiche = invraisemblable
+        piece["lecture_partielle"] = {"ttc_lu": str(ttc_lu)}
+        piece.update(statut="non_traite", ht=None, tva=None, ttc=None, taux_tva=None,
+                     motif=(f"montant lu sur l'image invraisemblable pour ce tiers : "
+                            f"{ttc_lu} MAD contre une moyenne de "
+                            f"{fiche['montant_moyen_ttc_mad']} MAD"))
+        return piece
+
     manquants = [c for c in CHAMPS_MINIMUM if not partiel.get(c)]
     if manquants:
         motif = "champs illisibles : " + ", ".join(manquants)
