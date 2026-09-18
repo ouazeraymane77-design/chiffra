@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chiffra — contrôle du dossier</title>
+<style>
+  :root{
+    --papier:#f5f6f7; --encre:#12151a; --sourdine:#5f6772; --filet:#dce0e3;
+    --blanc:#ffffff; --risque:#a11f1f; --tenu:#16624a; --attente:#8a5a00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--papier);color:var(--encre);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-variant-numeric:tabular-nums}
+  .page{max-width:1120px;margin:0 auto;padding:28px 22px 80px}
+  .barre{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;
+    padding-bottom:14px;border-bottom:1px solid var(--filet)}
+  h1{font-size:19px;font-weight:650;margin:0;letter-spacing:-.01em}
+  .dossier{color:var(--sourdine);font-size:13px}
+  button{font:inherit;border:1px solid var(--encre);background:var(--encre);color:#fff;
+    padding:8px 15px;border-radius:2px;cursor:pointer}
+  button.discret{background:transparent;color:var(--encre);border-color:var(--filet)}
+  button:disabled{opacity:.45;cursor:progress}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--encre);outline-offset:2px}
+
+  .chiffre{padding:34px 0 26px;border-bottom:1px solid var(--filet)}
+  .chiffre .valeur{font-size:clamp(44px,8vw,78px);font-weight:680;letter-spacing:-.035em;line-height:1}
+  .chiffre .unite{font-size:.3em;font-weight:500;color:var(--sourdine);margin-left:.35em;letter-spacing:0}
+  .chiffre .legende{color:var(--sourdine);margin-top:8px;max-width:62ch}
+  .jauge{display:flex;height:6px;margin-top:20px;background:var(--filet)}
+  .jauge span{display:block}
+  .cles{display:flex;flex-wrap:wrap;gap:34px;margin-top:22px}
+  .cle b{display:block;font-size:22px;font-weight:620}
+  .cle span{color:var(--sourdine);font-size:13px}
+
+  .note{margin:22px 0 0;padding:14px 16px;background:var(--blanc);border-left:2px solid var(--encre);
+    white-space:pre-wrap;max-width:78ch}
+  h2{font-size:14px;font-weight:650;margin:34px 0 0}
+  h2 + p{color:var(--sourdine);font-size:13px;margin:4px 0 10px;max-width:72ch}
+
+  table{width:100%;border-collapse:collapse;margin-top:8px;background:var(--blanc)}
+  th{text-align:left;font-weight:600;font-size:12px;color:var(--sourdine);
+    padding:9px 10px;border-bottom:1px solid var(--filet)}
+  td{padding:11px 10px;border-bottom:1px solid var(--filet);vertical-align:top}
+  th.n,td.n{text-align:right;white-space:nowrap}
+  tr.masquee{opacity:.45}
+  .mad{font-weight:640}
+  .piece a{color:inherit;font-weight:600}
+  .motif{color:var(--sourdine);font-size:13px;margin-top:3px;max-width:62ch}
+  .action{font-size:13px;margin-top:6px;max-width:62ch}
+  .action::before{content:"À faire — ";color:var(--sourdine)}
+  .etiquette{display:inline-block;font-size:12px;padding:1px 7px;border:1px solid var(--filet);
+    border-radius:2px;color:var(--sourdine);white-space:nowrap}
+  .conf{font-size:12px;color:var(--sourdine)}
+  .arb{display:flex;gap:6px}
+  .arb button{padding:5px 10px;font-size:13px}
+  .verdict{font-size:13px;color:var(--tenu)}
+  .vide{padding:26px 10px;color:var(--sourdine);background:var(--blanc)}
+  details{margin-top:8px}
+  summary{cursor:pointer;font-size:13px;color:var(--sourdine);padding:6px 0}
+  pre{background:var(--blanc);padding:12px;overflow:auto;font-size:12px;margin:0}
+  @media (prefers-reduced-motion:no-preference){button{transition:background .12s}}
+  @media (max-width:640px){td .arb{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="barre">
+    <div>
+      <h1>Chiffra</h1>
+      <div class="dossier">ATLAS DIGITAL SERVICES SARL · exercice du 1<sup>er</sup> janvier au 30 juin 2026</div>
+    </div>
+    <div class="arb">
+      <button class="discret" id="btn-sans" type="button">Contrôler sans le modèle</button>
+      <button id="btn-run" type="button">Lancer le contrôle</button>
+    </div>
+  </div>
+
+  <div id="corps">
+    <div class="vide" style="margin-top:20px">
+      Aucun contrôle lancé. Le dossier contient 107 pièces et 6 relevés bancaires.
+      Lancez le contrôle pour obtenir le risque chiffré et les pièces à arbitrer.
+    </div>
+  </div>
+</div>
+
+<script>
+const COULEURS = {
+  doublon_exact:"#a11f1f", doublon_probable:"#c86a1e", tva_erronee:"#8a5a00",
+  tva_incoherente:"#6b7a1e", hors_periode:"#1e5f7a", tiers_inconnu:"#4a3f8a",
+  montant_aberrant:"#a11f5f", ice_manquant:"#5f6772", document_non_traite:"#9aa1a8"
+};
+const mad = v => Number(v||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = t => String(t??"").replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+async function lancer(avecModele){
+  const boutons=[...document.querySelectorAll("button")];
+  boutons.forEach(b=>b.disabled=true);
+  document.getElementById("corps").innerHTML =
+    '<div class="vide" style="margin-top:20px">Lecture des pièces, rapprochement bancaire, contrôles… (environ 20 secondes)</div>';
+  try{
+    const r = await fetch(`/api/analyse?avec_modele=${avecModele}`,{method:"POST"});
+    if(!r.ok) throw new Error(await r.text());
+    afficher(await r.json());
+  }catch(e){
+    document.getElementById("corps").innerHTML =
+      `<div class="vide" style="margin-top:20px">Le contrôle n'a pas abouti : ${esc(e.message)}. Relancez-le.</div>`;
+  }finally{ boutons.forEach(b=>b.disabled=false); }
+}
+
+function jauge(anomalies, total){
+  const parFamille = {};
+  anomalies.forEach(a=>parFamille[a.famille]=(parFamille[a.famille]||0)+Number(a.exposition_mad||0));
+  const entrees = Object.entries(parFamille).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  if(!entrees.length || !total) return "";
+  return `<div class="jauge">${entrees.map(([f,v])=>
+    `<span style="width:${(100*v/total).toFixed(2)}%;background:${COULEURS[f]||"#999"}" title="${f} : ${mad(v)} MAD"></span>`).join("")}</div>`;
+}
+
+function afficher(d){
+  const a = d.anomalies||[];
+  const total = Number(d.exposition_totale_mad||0);
+  const chiffrees = a.filter(x=>Number(x.exposition_mad)>0).length;
+
+  const lignes = a.map((x,i)=>`
+    <tr class="${x.statut_revue==="masquee_apres_rejets"?"masquee":""}" id="ano-${i}">
+      <td class="piece">
+        <a href="/api/document/${x.doc_id}" target="_blank" rel="noopener">${esc(x.doc_id)}</a>
+        <div class="motif">${esc(x.fournisseur||"tiers non identifié")} · ${esc(x.numero||"sans numéro")} · ${esc(x.date||"date illisible")}</div>
+      </td>
+      <td>
+        <span class="etiquette" style="border-color:${COULEURS[x.famille]||"#ccc"}">${esc(x.libelle)}</span>
+        <div class="motif">${esc(x.detail)}</div>
+        <div class="action">${esc(x.action||"")}</div>
+        ${x.apprentissage?`<div class="motif">Mémoire : ${esc(x.apprentissage)}</div>`:""}
+      </td>
+      <td class="n"><span class="mad">${mad(x.exposition_mad)}</span><div class="conf">confiance ${x.confiance}</div></td>
+      <td class="n">
+        <div class="arb">
+          <button class="discret" type="button" onclick="arbitrer(${i},'valide')">Retenir</button>
+          <button class="discret" type="button" onclick="arbitrer(${i},'rejete')">Rejeter</button>
+        </div>
+        <div class="verdict" id="verdict-${i}"></div>
+      </td>
+    </tr>`).join("");
+
+  document.getElementById("corps").innerHTML = `
+    <div class="chiffre">
+      <div class="valeur">${mad(total)}<span class="unite">MAD de risque</span></div>
+      <div class="legende">Somme des redressements et des déductions de TVA contestables,
+        calculée par le code sur ${chiffrees} anomalies chiffrées. Les montants ne passent jamais par le modèle.</div>
+      ${jauge(a,total)}
+      <div class="cles">
+        <div class="cle"><b>${d.pieces_traitees} / ${d.pieces_total}</b><span>pièces lues (${d.taux_lecture} %)</span></div>
+        <div class="cle"><b>${d.taux_rapprochement} %</b><span>rapprochement bancaire (${d.factures_rapprochees}/${d.factures_rapprochables})</span></div>
+        <div class="cle"><b>${mad(d.total_reste_du)}</b><span>MAD restant dus aux fournisseurs</span></div>
+        <div class="cle"><b>${d.pieces_non_traitees}</b><span>pièces laissées à la main</span></div>
+      </div>
+    </div>
+
+    ${d.synthese?`<div class="note">${esc(d.synthese)}</div>`:""}
+
+    <h2>Anomalies, de la plus coûteuse à la moins coûteuse</h2>
+    <p>Chaque identifiant ouvre la pièce d'origine. Un rejet abaisse la confiance des cas identiques chez le même tiers.</p>
+    ${a.length?`<table><thead><tr>
+        <th>Pièce</th><th>Constat et action</th><th class="n">Exposition</th><th class="n">Arbitrage</th>
+      </tr></thead><tbody>${lignes}</tbody></table>`:'<div class="vide">Aucune anomalie retenue sur ce lot.</div>'}
+
+    <h2>Pièces non traitées</h2>
+    <p>Lecture impossible : aucune valeur n'a été retenue, aucun montant n'a été inventé.</p>
+    ${d.non_traitees.length?`<table><thead><tr><th>Pièce</th><th>Motif</th><th>Tiers lu</th></tr></thead><tbody>
+      ${d.non_traitees.map(p=>`<tr>
+        <td class="piece"><a href="/api/document/${p.doc_id}" target="_blank" rel="noopener">${esc(p.doc_id)}</a></td>
+        <td>${esc(p.motif)}</td><td>${esc(p.tiers||"—")}</td></tr>`).join("")}
+      </tbody></table>`:'<div class="vide">Toutes les pièces ont été lues.</div>'}
+
+    <h2>Lignes bancaires non soldées</h2>
+    <p>Salaires, frais bancaires et règlements clients sont écartés d'office : ${d.lignes_ignorees_regle_12} lignes, jamais comptées comme anomalies.</p>
+    ${d.residuels_bancaires.length?`<table><thead><tr>
+        <th>Date</th><th>Libellé</th><th class="n">Débit</th><th class="n">Résiduel</th><th>Pièces affectées</th>
+      </tr></thead><tbody>${d.residuels_bancaires.map(l=>`<tr>
+        <td>${esc(l.date)}</td><td>${esc(l.libelle)}</td>
+        <td class="n">${mad(l.debit)}</td><td class="n mad">${mad(l.residuel)}</td>
+        <td>${l.pieces_affectees.length?l.pieces_affectees.map(esc).join(", "):"aucune"}</td></tr>`).join("")}
+      </tbody></table>`:'<div class="vide">Toutes les lignes d\'achat sont soldées.</div>'}
+
+    <h2>Déroulé de l'agent</h2>
+    <p>Les étapes du graphe et leur état, tels qu'ils sont enregistrés en base à chaque passage.</p>
+    <details><summary>Ouvrir le journal d'exécution (${d.journal.length} étapes)</summary>
+      <pre>${esc(d.journal.map(e=>`${e.etape}\n  ${JSON.stringify(e.etat)}`).join("\n\n"))}</pre>
+    </details>`;
+
+  window.__anomalies = a;
+}
+
+async function arbitrer(i, verdict){
+  const x = window.__anomalies[i];
+  const cible = document.getElementById(`verdict-${i}`);
+  cible.textContent = "Enregistrement…";
+  const r = await fetch("/api/revue",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({doc_id:x.doc_id,fournisseur:x.fournisseur,famille:x.famille,verdict})});
+  const d = await r.json();
+  cible.textContent = (verdict==="rejete"?"Rejetée":"Retenue")+` · ${d.decisions_sur_ce_motif} décision(s) sur ce motif`;
+  cible.title = d.effet;
+  if(verdict==="rejete") document.getElementById(`ano-${i}`).classList.add("masquee");
+}
+
+document.getElementById("btn-run").onclick = ()=>lancer(true);
+document.getElementById("btn-sans").onclick = ()=>lancer(false);
+fetch("/api/rapport").then(r=>r.ok?r.json():null).then(d=>{ if(d) afficher(d); });
+</script>
+</body>
+</html>
