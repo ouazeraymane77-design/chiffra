@@ -55,10 +55,23 @@ RE_TTC = re.compile(r"(?:Net\s*[àa]\s*payer\s*T\.?T\.?C|\w{0,2}TAL\s*T\.?T\.?C\
 # ---------------------------------------------------------------- extraction
 
 def texte_pdf(chemin: Path) -> str:
+    """Couche texte d'un PDF.
+
+    pdftotext -layout donne la meilleure mise en page, mais c'est un binaire
+    systeme. S'il est absent (machine sans poppler), pypdfium2 prend le relais :
+    il est installe par pip et suffit aux regex du pied de facture.
+    """
     try:
         r = subprocess.run(["pdftotext", "-layout", str(chemin), "-"],
                            capture_output=True, timeout=30)
-        return r.stdout.decode("utf-8", "ignore")
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.decode("utf-8", "ignore")
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        pass
+    try:
+        import pypdfium2 as pdfium
+        doc = pdfium.PdfDocument(str(chemin))
+        return "\n".join(page.get_textpage().get_text_range() for page in doc)
     except Exception:
         return ""
 
@@ -69,7 +82,26 @@ def image_depuis_pdf(chemin: Path):
     return doc[0].render(scale=2.5).to_pil()
 
 
+OCR_DISPONIBLE = None
+
+
+def ocr_installe() -> bool:
+    """tesseract est optionnel : sans lui, les pieces scannees passent
+    directement au niveau suivant de l'escalade (lecture par le modele)."""
+    global OCR_DISPONIBLE
+    if OCR_DISPONIBLE is None:
+        try:
+            import pytesseract
+            pytesseract.get_tesseract_version()
+            OCR_DISPONIBLE = True
+        except Exception:
+            OCR_DISPONIBLE = False
+    return OCR_DISPONIBLE
+
+
 def texte_ocr(chemin: Path) -> str:
+    if not ocr_installe():
+        return ""
     import pytesseract
     from PIL import Image
     try:
@@ -219,6 +251,22 @@ def depuis_excel(doc_id: str) -> dict:
 
 
 CHAMPS_MINIMUM = ("numero", "date", "ttc")
+FACTEUR_INVRAISEMBLABLE = d("10")
+
+
+def vraisemblable(champs: dict) -> bool:
+    """Un montant lu par le modele est confronte a l'historique du tiers.
+
+    Le modele lit une image degradee : il peut decaler une virgule ou coller
+    deux nombres. Une piece a dix fois la moyenne du fournisseur n'est pas
+    retenue comme lue — elle part en file humaine plutot que de fausser
+    l'exposition totale.
+    """
+    fiche, ttc = champs.get("fiche_fournisseur"), champs.get("ttc")
+    if not fiche or ttc is None:
+        return True
+    plafond = fiche["montant_moyen_ttc_mad"] * FACTEUR_INVRAISEMBLABLE
+    return abs(ttc) <= plafond
 
 
 def complet(champs: dict) -> bool:
@@ -262,14 +310,25 @@ def ingerer(chemin: Path, lecteur_modele=None) -> dict:
         lu = lecteur_modele(chemin, piece.get("texte_brut", ""))
         if lu:
             champs = reparer({**(piece.get("_partiel") or {}), **lu})
-            if complet(champs):
+            if complet(champs) and vraisemblable(champs):
                 piece.update(champs, statut="traite", source_extraction="lecture_modele")
+                return piece
+            if complet(champs):
+                fiche = champs.get("fiche_fournisseur")
+                piece["lecture_partielle"] = {"ttc_lu_par_le_modele": str(champs["ttc"])}
+                piece.update(statut="non_traite", ht=None, tva=None, ttc=None,
+                             motif=(f"montant lu par le modele invraisemblable pour "
+                                    f"ce tiers : {champs['ttc']} MAD contre une "
+                                    f"moyenne de {fiche['montant_moyen_ttc_mad']} MAD"))
                 return piece
 
     partiel = piece.pop("_partiel", {}) or {}
     manquants = [c for c in CHAMPS_MINIMUM if not partiel.get(c)]
     if manquants:
         motif = "champs illisibles : " + ", ".join(manquants)
+        if not ocr_installe() and not partiel:
+            motif = ("aucune couche texte et OCR local indisponible : piece "
+                     "confiee au modele, puis a la file humaine")
     else:
         motif = ("montants incoherents apres lecture : la TVA reconstituee ne "
                  "correspond pas au taux porte sur la piece"

@@ -34,9 +34,16 @@ Le modèle intervient à trois endroits, et à trois endroits seulement :
 | `explain.expliquer` | gpt-4.1 | Rédige l'action à mener. Reçoit les montants **déjà calculés**. |
 | `explain.synthetiser` | gpt-5.5 | Une note de cinq lignes sur le dossier. Seul appel au modèle de raisonnement. |
 
-Tout ce que le modèle produit est ensuite revérifié par le code : une pièce lue
-par le modèle n'est acceptée que si `HT + TVA = TTC` et que la TVA correspond au
-taux porté sur le document. Sinon elle repart en file humaine.
+Tout ce que le modèle produit est ensuite revérifié par le code. Une pièce lue
+par le modèle n'est acceptée que si trois conditions tiennent : `HT + TVA = TTC`,
+la TVA correspond au taux porté sur le document, et le TTC reste dans l'ordre de
+grandeur historique du fournisseur. Ce troisième contrôle n'est pas théorique :
+sur le corpus, le modèle a lu un scan dégradé d'ENERGIE PLUS à un montant dix
+fois supérieur à toutes ses autres factures. Le code l'a refusé et l'a renvoyé
+en file humaine, avec le motif affiché.
+
+L'exposition totale retient, par pièce, la plus forte anomalie et non la somme :
+une facture sans ICE et au montant aberrant met en jeu une seule TVA, pas deux.
 
 ## Architecture
 
@@ -82,13 +89,21 @@ Sans clé, tout fonctionne quand même : le bouton « Contrôler sans le modèle
 exécute la chaîne complète en code pur. C'est volontaire — le produit ne doit
 pas s'arrêter parce qu'un endpoint est indisponible pendant la démonstration.
 
-En local, sans Docker :
+En local, sans Docker, y compris sur une machine sans virtualisation :
 
-```bash
-pip install -r requirements.txt   # nécessite poppler-utils et tesseract-ocr
-uvicorn app.api:app --reload
-pytest -q                         # 16 tests
+```powershell
+python -m venv .venv
+.venv\Scripts\activate          # Windows ; sur Linux : source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.api:app --port 8000
+pytest -q                        # 16 tests
 ```
+
+Aucun binaire système n'est requis. `pdftotext` et `tesseract` sont utilisés
+s'ils sont présents, sinon l'Ingestor bascule seul : la couche texte des PDF
+est lue par `pypdfium2`, et les pièces scannées passent directement au niveau
+suivant de l'escalade, la lecture par le modèle. Le taux de lecture en code pur
+passe alors de 88,8 % à 86 %, et les tests passent dans les deux cas.
 
 ## Résultats sur le corpus fourni
 

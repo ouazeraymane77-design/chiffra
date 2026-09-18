@@ -186,6 +186,18 @@ def appliquer_decisions(anomalies: list, decisions: list) -> list:
     return anomalies
 
 
+def exposition_totale(anomalies: list):
+    """Une piece peut porter plusieurs anomalies — ICE absent et montant
+    aberrant, par exemple — mais c'est la meme TVA qui est en jeu. Le total
+    retient donc, par piece, la plus forte exposition et non leur somme."""
+    par_piece = {}
+    for a in anomalies:
+        montant = a["exposition_mad"] or d("0")
+        if montant > par_piece.get(a["doc_id"], d("0")):
+            par_piece[a["doc_id"]] = montant
+    return q(sum(par_piece.values(), d("0")))
+
+
 def auditer(pieces: list, decisions: list = None) -> list:
     anomalies = []
     for piece in pieces:

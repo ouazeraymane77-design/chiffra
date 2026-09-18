@@ -14,7 +14,7 @@ sortie tienne compte de ce qui a ete arbitre avant (EX-06).
 from datetime import datetime, timezone
 
 from app import db
-from app.audit import auditer
+from app.audit import auditer, exposition_totale
 from app.explain import expliquer, synthetiser
 from app.ingest import ingerer_lot
 from app.money import q, d
@@ -94,8 +94,11 @@ class Orchestrateur:
         return anomalies
 
     def chiffrage(self, anomalies):
-        total = q(sum((a["exposition_mad"] for a in anomalies), d("0")))
-        self._etape("chiffrage", {"exposition_totale_mad": str(total)})
+        total = exposition_totale(anomalies)
+        self._etape("chiffrage", {
+            "exposition_totale_mad": str(total),
+            "methode": "plus forte exposition par piece, jamais la somme des "
+                       "anomalies d'une meme piece"})
         return total
 
     def revision(self, anomalies):
