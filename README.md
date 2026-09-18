@@ -22,7 +22,7 @@ fichiers `reconcile.py` et `audit.py` ne contiennent aucun appel réseau — c'e
 vérifiable en deux secondes :
 
 ```bash
-grep -rn "llm\|openai\|appeler(" app/reconcile.py app/audit.py app/money.py
+grep -rn "openai\|appeler(\|llm" api/src/money.ts api/src/reconcile.ts api/src/audit.ts
 # aucun résultat
 ```
 
@@ -30,7 +30,7 @@ Le modèle intervient à trois endroits, et à trois endroits seulement :
 
 | Où | Modèle | Ce qu'il fait |
 |---|---|---|
-| `llm.lire_piece` | gpt-4.1 (vision) | **Lit** une pièce que le code n'a pas su lire. Consigne explicite : recopier, ne rien déduire, `null` pour tout champ absent. |
+| `vision.lireModele` | gpt-4.1 (vision) | **Lit** une pièce que le code n'a pas su lire. Consigne explicite : recopier, ne rien déduire, `null` pour tout champ absent. |
 | `explain.expliquer` | gpt-4.1 | Rédige l'action à mener. Reçoit les montants **déjà calculés**. |
 | `explain.synthetiser` | gpt-5.5 | Une note de cinq lignes sur le dossier. Seul appel au modèle de raisonnement. |
 
@@ -38,9 +38,11 @@ Tout ce que le modèle produit est ensuite revérifié par le code. Une pièce l
 par le modèle n'est acceptée que si trois conditions tiennent : `HT + TVA = TTC`,
 la TVA correspond au taux porté sur le document, et le TTC reste dans l'ordre de
 grandeur historique du fournisseur. Ce troisième contrôle n'est pas théorique :
-sur le corpus, le modèle a lu un scan dégradé d'ENERGIE PLUS à un montant dix
-fois supérieur à toutes ses autres factures. Le code l'a refusé et l'a renvoyé
-en file humaine, avec le motif affiché.
+sur le corpus, un scan dégradé d'ENERGIE PLUS a été lu à 457 000 MAD alors que
+ce fournisseur facture 8 238 MAD en moyenne. Le code l'a refusé et l'a renvoyé
+en file humaine, avec le motif affiché. Le contrôle s'applique à toute lecture
+faite sur une image — OCR comme modèle — et jamais à la couche texte d'un PDF,
+qui est exacte.
 
 L'exposition totale retient, par pièce, la plus forte anomalie et non la somme :
 une facture sans ICE et au montant aberrant met en jeu une seule TVA, pas deux.
@@ -82,21 +84,42 @@ comptable et écarte le bruit avant de déranger un humain.
 
 ```bash
 cp .env.example .env      # y mettre les clés fournies par Numeos
-docker compose up --build # http://localhost:8000
+docker compose up --build
 ```
+
+Cinq services démarrent : `postgres`, `redis`, `api`, `worker` et `web`.
+Ouvrez **http://localhost:5173**. L'API reste accessible sur le port 8000 pour
+inspecter une réponse directement.
 
 Sans clé, tout fonctionne quand même : le bouton « Contrôler sans le modèle »
 exécute la chaîne complète en code pur. C'est volontaire — le produit ne doit
 pas s'arrêter parce qu'un endpoint est indisponible pendant la démonstration.
 
-En local, sans Docker, y compris sur une machine sans virtualisation :
+Les tests, sans rien démarrer d'autre :
+
+```bash
+cd api
+npm install
+npm run build
+DATA_DIR=../data node --test dist/*.test.js   # 24 tests
+```
+
+En local, sans Docker :
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate          # Windows ; sur Linux : source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.api:app --port 8000
-pytest -q                        # 16 tests
+pytest -q                        # 17 tests (version Python historique)
+```
+
+Pour l'interface, dans un second terminal :
+
+```powershell
+cd web
+npm install
+npm run dev                      # http://localhost:5173, /api est relayé vers le port 8000
 ```
 
 Aucun binaire système n'est requis. `pdftotext` et `tesseract` sont utilisés
@@ -155,13 +178,46 @@ le système préfère l'admettre plutôt que d'imputer un montant au hasard.
 - **EX-08** statut « non traité » avec motif ; les valeurs entrevues sont
   rangées dans `lecture_partielle` et ne servent à aucun calcul.
 
+## La stack
+
+| Couche | Technologie | Où |
+|---|---|---|
+| Interface | React 18, TypeScript, Vite, servie par nginx | `web/` |
+| API et agents | Node 20, TypeScript, Fastify | `api/src/` |
+| Orchestration | LangGraph, checkpointer Postgres | `api/src/graph.ts` |
+| Base de données | PostgreSQL 16, montants en `numeric` | `api/src/db.ts` |
+| Cache et file | Redis 7, BullMQ | `api/src/queue.ts`, `api/src/worker.ts` |
+| Arithmétique | decimal.js | `api/src/money.ts` |
+| Exécution | Docker Compose, cinq services | `docker-compose.yml` |
+
+Le graphe déclare huit nœuds : `lecture`, `escalade_illisibles`,
+`rapprochement_bancaire`, `controles`, `chiffrage`, `revision`, `redaction`,
+`note_de_synthese`. Chacun écrit son état dans le journal, et le checkpointer
+Postgres persiste la progression, ce qui rend les reprises possibles.
+
+L'ingestion des 107 pièces passe par la file BullMQ : le worker est un service
+séparé, l'OCR de chaque document est mis en cache dans Redis, et les appels au
+modèle le sont aussi. Si Redis ou Postgres ne répondent pas, le contrôle tourne
+quand même en mode dégradé plutôt que de refuser de démarrer.
+
+## Une version Python existe aussi
+
+Le dossier `app/` contient une première implémentation complète en Python, avec
+ses propres tests. Elle a servi à valider les règles métier avant le portage.
+Elle reste dans le dépôt sous l'étiquette `v1-python` et n'est plus le chemin
+d'exécution.
+
 ## Choix de stack, assumé
 
-Le cahier des charges recommande React, Node, LangGraph, Postgres et Redis.
-Le projet est réalisé **seul**, ce qui change l'arbitrage : Python, FastAPI,
-SQLite et une page servie par l'API. Le temps économisé sur l'infrastructure est
-passé sur l'exactitude arithmétique et sur le taux de faux positifs, qui sont
-les deux critères annoncés comme départageants.
+La stack recommandée par le cahier des charges est suivie intégralement :
+React 18 et TypeScript en Vite pour l'interface, Node 20 et Fastify pour l'API
+et les agents, LangGraph pour l'orchestration, PostgreSQL 16 comme source de
+vérité, Redis 7 pour le cache et la file, decimal.js pour l'arithmétique,
+Docker Compose pour l'exécution.
+
+Un seul langage du front aux agents, et le typage sert de contrat entre eux :
+`web/src/types.ts` décrit ce que l'API renvoie, et `api/src/rapport.ts` ce
+qu'elle produit. Si un agent change sa sortie, la compilation échoue.
 
 Ce qui était demandé à la stack est conservé : l'orchestration reste un graphe
 explicite avec des états et des checkpoints persistés, le cache des appels au
@@ -192,6 +248,9 @@ app/llm.py           accès aux deux modèles, cache disque
 app/orchestrator.py  le graphe
 app/db.py            SQLite : exécutions, checkpoints, décisions humaines
 app/api.py           API et service de l'interface
-app/static/index.html interface de contrôle
+app/static/index.html interface de secours, servie par l'API seule
+web/src/types.ts     contrat de données entre les agents et l'interface
+web/src/App.tsx      interface React : exposition, arbitrage, traçabilité
+web/Dockerfile       compilation Vite puis service par nginx
 tests/               les scénarios du jury
 ```

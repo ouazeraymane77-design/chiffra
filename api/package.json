@@ -1,0 +1,33 @@
+{
+  "name": "chiffra-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@fastify/static": "^7.0.4",
+    "@langchain/core": "^0.3.26",
+    "@langchain/langgraph": "^0.2.36",
+    "@langchain/langgraph-checkpoint-postgres": "^0.0.3",
+    "bullmq": "^5.34.5",
+    "decimal.js": "^10.4.3",
+    "fastify": "^4.28.1",
+    "ioredis": "^5.4.2",
+    "openai": "^4.77.0",
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

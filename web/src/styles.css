@@ -1,0 +1,432 @@
+/* Chiffra — contrôle comptable.
+   Le sujet est un dossier fiscal marocain : papier froid, encre vert bouteille,
+   carmin réservé à ce qui coûte de l'argent. Un seul geste fort, la bande
+   d'exposition ; tout le reste se tait. */
+
+:root {
+  --papier: #f1f3ed;
+  --surface: #ffffff;
+  --encre: #12261e;
+  --encre-douce: #5c6b62;
+  --filet: #d2d8cb;
+  --carmin: #a2242b;
+  --solde: #2e6b4f;
+
+  --f-doublon-exact: #a2242b;
+  --f-doublon-probable: #c4622f;
+  --f-tva-erronee: #b08900;
+  --f-tva-incoherente: #7a8c1f;
+  --f-hors-periode: #2f6f7d;
+  --f-tiers-inconnu: #4b4a8c;
+  --f-montant-aberrant: #8c2f6b;
+  --f-ice-manquant: #6b7a70;
+  --f-non-traite: #a8b0a6;
+
+  --pas: 4px;
+  --colonne: 1180px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--encre);
+  font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: var(--colonne);
+  margin: 0 auto;
+  padding: 24px 20px 96px;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- en-tête */
+
+.entete {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--filet);
+}
+
+.marque {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.dossier {
+  color: var(--encre-douce);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  font-weight: 500;
+  border: 1px solid var(--encre);
+  background: var(--encre);
+  color: var(--papier);
+  padding: 9px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+button.sobre {
+  background: transparent;
+  color: var(--encre);
+  border-color: var(--filet);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: progress;
+}
+
+/* ------------------------------------------------- le geste : l'exposition */
+
+.exposition {
+  padding: 40px 0 28px;
+  border-bottom: 1px solid var(--filet);
+}
+
+.montant {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.montant strong {
+  font-size: clamp(46px, 8.5vw, 86px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.montant span {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--encre-douce);
+}
+
+.glose {
+  color: var(--encre-douce);
+  margin: 12px 0 0;
+  max-width: 58ch;
+}
+
+.bande {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  margin-top: 26px;
+  background: var(--filet);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.bande button {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  height: 100%;
+  min-width: 2px;
+  cursor: pointer;
+  position: relative;
+}
+
+.bande button + button {
+  border-left: 1px solid var(--papier);
+}
+
+.bande button:hover,
+.bande button:focus-visible {
+  filter: brightness(1.18);
+}
+
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--encre-douce);
+}
+
+.legende span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.puce {
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  flex: none;
+}
+
+.mesures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 26px;
+  margin-top: 32px;
+}
+
+.mesure b {
+  display: block;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.mesure span {
+  color: var(--encre-douce);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------- la synthèse */
+
+.synthese {
+  margin-top: 28px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border-left: 3px solid var(--solde);
+  white-space: pre-wrap;
+  max-width: 76ch;
+}
+
+.synthese h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-douce);
+  margin: 0 0 8px;
+}
+
+/* --------------------------------------------------------------- sections */
+
+section {
+  margin-top: 44px;
+}
+
+section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+section p.intro {
+  color: var(--encre-douce);
+  font-size: 13px;
+  margin: 4px 0 14px;
+  max-width: 70ch;
+}
+
+/* --------------------------------------------------------------- anomalies */
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--filet);
+  border-top: 1px solid var(--filet);
+  border-bottom: 1px solid var(--filet);
+}
+
+.ligne {
+  display: grid;
+  grid-template-columns: 200px 1fr 170px 150px;
+  gap: 20px;
+  padding: 18px 16px;
+  background: var(--surface);
+  scroll-margin-top: 20px;
+}
+
+.ligne.ecartee {
+  opacity: 0.5;
+}
+
+.ligne.pointee {
+  box-shadow: inset 3px 0 0 var(--encre);
+}
+
+.piece a {
+  font-weight: 600;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.piece p {
+  margin: 3px 0 0;
+  color: var(--encre-douce);
+  font-size: 13px;
+}
+
+.motif {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border: 1px solid;
+  border-radius: 2px;
+}
+
+.constat {
+  margin: 8px 0 0;
+  max-width: 62ch;
+}
+
+.consigne {
+  margin: 7px 0 0;
+  font-size: 14px;
+  color: var(--encre-douce);
+  max-width: 62ch;
+}
+
+.memoire {
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: var(--carmin);
+}
+
+.chiffre {
+  text-align: right;
+}
+
+.chiffre b {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.chiffre span {
+  display: block;
+  font-size: 13px;
+  color: var(--encre-douce);
+}
+
+.arbitrage {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-end;
+}
+
+.arbitrage div {
+  display: flex;
+  gap: 6px;
+}
+
+.arbitrage button {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.verdict {
+  font-size: 13px;
+  color: var(--solde);
+  text-align: right;
+}
+
+/* --------------------------------------------------------------- tableaux */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+th {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-douce);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--filet);
+}
+
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--filet);
+  vertical-align: top;
+}
+
+th.nombre,
+td.nombre {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ divers */
+
+.vide {
+  padding: 24px 16px;
+  background: var(--surface);
+  color: var(--encre-douce);
+}
+
+.erreur {
+  border-left: 3px solid var(--carmin);
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--encre-douce);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+pre {
+  background: var(--surface);
+  padding: 14px;
+  overflow: auto;
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .ligne {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .chiffre,
+  .arbitrage {
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .bande {
+    height: 30px;
+  }
+}

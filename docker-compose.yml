@@ -1,13 +1,68 @@
+# Cinq services, une commande : `docker compose up --build`.
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chiffra
+      POSTGRES_PASSWORD: chiffra
+      POSTGRES_DB: chiffra
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chiffra"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    volumes:
+      - chiffra-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   api:
-    build: .
-    ports:
-      - "8000:8000"
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://chiffra:chiffra@postgres:5432/chiffra
+      REDIS_URL: redis://redis:6379
     env_file:
       - .env
-    volumes:
-      # etat persistant : base SQLite et cache des appels au modele
-      - chiffra-etat:/srv/etat
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgres://chiffra:chiffra@postgres:5432/chiffra
+      REDIS_URL: redis://redis:6379
+      INGESTION_CONCURRENCE: "6"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
 
 volumes:
-  chiffra-etat:
+  chiffra-postgres:

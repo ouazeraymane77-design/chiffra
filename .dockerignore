@@ -1,6 +1,10 @@
 .git
 .env
-__pycache__
-*.pyc
+api/node_modules
+api/dist
+web/node_modules
+web/dist
+app/__pycache__
+**/__pycache__
 chiffra.db
 data/cache
